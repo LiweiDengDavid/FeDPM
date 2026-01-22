@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+logs/
+saved_models/
+Datasets/
+After_training/

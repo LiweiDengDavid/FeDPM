@@ -1,10 +1,9 @@
-# FL-VQVAE: Federated Learning with VQVAE for Time Series Forecasting
+# Revisiting Federated Foundation Models for Time Series: Towards a Unified Discrete Representation Space
 
-A PyTorch implementation for the project: **FL-VQVAE**. This project implements a **Federated Learning** framework combined with **VQVAE** for robust time-series forecasting.
+A PyTorch implementation for the project: **FedUnit** (**Fed**erated framework for learning **Uni**fied **T**ime-series representations in a discrete space)
 
 ## 🎯 Overview
 
-This repository contains the implementation of a Federated Learning model utilizing Vector Quantized Variational AutoEncoders (VQVAE) to capture latent representations of time-series data across distributed clients.
 
 ## 📝 Install Dependencies
 
@@ -65,7 +64,7 @@ Perform experiments with limited data availability:
 ## ⚙️ Notes
 
 *   **GPU Configuration**: Edit `cuda_id` or `BASE_CUDA_ID` in the respective shell scripts (`.sh`) to assign specific GPUs.
-*   **Environment**: Python 3.x and PyTorch are required.
+
 
 ## 🌟 Citation
 
