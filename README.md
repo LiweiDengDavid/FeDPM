@@ -1,4 +1,4 @@
-# Revisiting Federated Foundation Models for Time Series: Towards a Unified Discrete Representation Space
+# Discrete Prototypical Memories for Federated Time Series Foundation Models
 
 A PyTorch implementation for the project: **FedUnit** (**Fed**erated framework for learning **Uni**fied **T**ime-series representations in a discrete space)
 
