@@ -4,7 +4,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/release/python-390/)
 [![PyTorch 2.3](https://img.shields.io/badge/PyTorch-2.3-ee4c2c.svg)](https://pytorch.org/get-started/locally/)
 
-Official PyTorch implementation for **FedUnit**: **Fed**erated framework for learning **Uni**fied **T**ime-series representations in a discrete space.
+Official PyTorch implementation for **FedUnit**, a **Fed**erated framework for learning **Uni**fied **T**ime-series representations via discrete prototypical memories.
 
 ## 🎯 Overview
 
