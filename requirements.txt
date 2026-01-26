@@ -1,0 +1,27 @@
+# Core Deep Learning (Matches Python 3.9 + CUDA 11.8/12.1)
+torch~=2.3.0
+torchvision~=0.18.0
+torchaudio~=2.3.0
+
+# Data Processing
+numpy>=1.24.0,<2.0.0
+pandas~=2.1.0
+scikit-learn~=1.4.0
+scipy~=1.12.0
+PyWavelets~=1.5.0
+sktime~=0.27.0
+statsmodels~=0.14.0
+
+# Logging & Visualization
+matplotlib~=3.8.0
+seaborn~=0.13.0
+colorlog~=6.8.0
+comet_ml~=3.40.0
+tqdm~=4.66.0
+networkx~=3.2.0
+
+# Model Architecture Support
+PyYAML~=6.0.1
+einops~=0.8.0
+einops-exts~=0.0.4
+reformer-pytorch~=1.4.0
