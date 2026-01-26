@@ -66,13 +66,13 @@ bash extract_all_data.sh
 
 ## 🚀 Experiments
 
-### 1.Full-Shot Federated Learning
+### 1. Full-Shot Federated Learning
 Train the model across all clients using the default federated setting:
 ```bash
 bash train_FL_setting.sh
 ```
 
-### 2.Few-Shot Learning (5% & 10%)
+### 2. Few-Shot Learning (5% & 10%)
 We evaluate the framework's robustness using only a fraction of the local data:
 *   **5% Data**: `bash few_shot_5percent.sh`
 *   **10% Data**: `bash few_shot_10percent.sh`
