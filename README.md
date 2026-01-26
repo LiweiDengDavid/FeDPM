@@ -9,7 +9,7 @@ Official PyTorch implementation for **FedUnit**: **Fed**erated framework for lea
 ## 🎯 Overview
 
 <p align="center">
-<img src="./Images/Overview.pdf" width="900">
+<img src="./Images/Overview.png" width="900">
 <br>
 <em>Figure 1. The overall architecture of the proposed FedUnit framework.</em>
 </p>
