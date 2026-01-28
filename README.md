@@ -4,14 +4,14 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/release/python-390/)
 [![PyTorch 2.3](https://img.shields.io/badge/PyTorch-2.3-ee4c2c.svg)](https://pytorch.org/get-started/locally/)
 
-Official PyTorch implementation for **FedUnit**, a **Fed**erated framework for learning **Uni**fied **T**ime-series representations via discrete prototypical memories.
+Official PyTorch implementation for **FeDPM**, a **Fe**derated framework for time-series foundation models based on **D**iscrete **P**rototypical **M**emories.
 
 ## 🎯 Overview
 
 <p align="center">
 <img src="./Images/Overview.png" width="900">
 <br>
-<em>Figure 1. The overall architecture of the proposed FedUnit framework.</em>
+<em>Figure 1. The overall architecture of the proposed FeDPM framework.</em>
 </p>
 
 ## 📂 Project Structure
