@@ -1,17 +1,3 @@
-# From: gluonts/src/gluonts/time_feature/_base.py
-# Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License").
-# You may not use this file except in compliance with the License.
-# A copy of the License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# or in the "license" file accompanying this file. This file is distributed
-# on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-# express or implied. See the License for the specific language governing
-# permissions and limitations under the License.
-
 from typing import List
 
 import numpy as np
@@ -29,6 +15,14 @@ class TimeFeature:
 
     def __repr__(self):
         return self.__class__.__name__ + "()"
+
+
+class MillisecondOfMinute(TimeFeature):
+    """Millisecond of minute encoded as value between [-0.5, 0.5]"""
+
+    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
+        milliseconds = index.second * 1000 + index.microsecond // 1000
+        return milliseconds / 59999.0 - 0.5
 
 
 class SecondOfMinute(TimeFeature):
@@ -119,6 +113,15 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
             DayOfMonth,
             DayOfYear,
         ],
+        offsets.Milli: [
+            MillisecondOfMinute,
+            SecondOfMinute,
+            MinuteOfHour,
+            HourOfDay,
+            DayOfWeek,
+            DayOfMonth,
+            DayOfYear,
+        ],
     }
 
     offset = to_offset(freq_str)
@@ -140,6 +143,7 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
         T   - minutely
             alias: min
         S   - secondly
+        ms  - milliseconds
     """
     raise RuntimeError(supported_freq_msg)
 

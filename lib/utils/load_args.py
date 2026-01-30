@@ -1,7 +1,7 @@
 import yaml
 from argparse import Namespace
 
-def load_ablation_config(yaml_path):
+def load_additional_config(yaml_path):
     """
     Load ablation configuration from YAML file.
     Converts nested YAML structure into a flat namespace with dot notation.

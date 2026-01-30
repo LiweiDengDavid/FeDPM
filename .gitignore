@@ -5,14 +5,13 @@ saved_models/
 Datasets/
 After_training/
 saved_data/
-models/
 
-# 排除不需要上传的脚本和配置文件
+
 central_main.py
 to_csv.py
-extract_forecasting_data.py
 # .sh
 # *.yaml
 # *.json
 scripts/
 temp_config_*.yaml
+results.jsonl

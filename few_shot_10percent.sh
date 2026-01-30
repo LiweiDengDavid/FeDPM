@@ -4,154 +4,72 @@
 # This script runs federated learning with only 10% of the training data for each client
 
 # General settings
-cuda_id=1
-seed=2025
-num_rounds=100
-local_epochs=5
-patience=10
+CUDA_ID=1
+SEED=2025
+NUM_ROUNDS=100
+LOCAL_EPOCHS=5
+PATIENCE=10
 
 # Few-shot setting
-few_shot_ratio=0.1  # 10% of training data
+FEW_SHOT_RATIO=0.1  # 10% of training data
 
 # Data settings
-Tin=96
-Tout=96
+TIN=96
+TOUT=96
 
 # Aggregation settings
-aggregation_strategy="cos_similarity"
-similarity_threshold=0.7
-gamma=0.95
-codebook_fill_strategy="client_personalized"
+AGGREGATION_STRATEGY="cos_similarity"
+SIMILARITY_THRESHOLD=0.7
+GAMMA=0.95
+MEMORY_FILL_STRATEGY="client_personalized"
 
 # Paths
-config_path="vqvae.json"
-ablation_config_path="Ablation_args_transformer.yaml"
-log_dir="./logs/federated_few_shot"
-results_path="results_few_shot_10percent.jsonl"
-checkpoint_path="./saved_models/"
-base_data_path="./saved_data/"
+backbone_config_path="transformer_args.yaml"
+LOG_DIR="./logs/federated_few_shot"
+RESULTS_PATH="results_few_shot_10percent.jsonl"
+CHECKPOINT_PATH="./saved_models/"
+BASE_DATA_PATH="./saved_data/"
 
 # Client datasets - modify as needed
-client_data_types=("ETTm1" "ETTm2" "electricity" "weather" "exchange")
-clients_disable_mustd=("ETTm1" "ETTm2")
+CLIENT_DATA_TYPES=("ETTm1" "ETTm2" "electricity" "weather" "exchange")
+CLIENTS_DISABLE_MUSTD=("ETTm1" "ETTm2")
 echo "=================================================="
 echo "Few-shot Learning Experiment: 10% Training Data"
 echo "=================================================="
-echo "Clients: ${client_data_types[@]}"
-echo "Few-shot ratio: ${few_shot_ratio} (10%)"
-echo "Rounds: ${num_rounds}"
-echo "Local epochs: ${local_epochs}"
-echo "Seed: ${seed}"
+echo "Clients: ${CLIENT_DATA_TYPES[@]}"
+echo "Few-shot ratio: ${FEW_SHOT_RATIO} (10%)"
+echo "Rounds: ${NUM_ROUNDS}"
+echo "Local epochs: ${LOCAL_EPOCHS}"
+echo "Seed: ${SEED}"
 echo "=================================================="
 
 python federated_learning_main.py \
-    --cuda-id ${cuda_id} \
-    --seed ${seed} \
-    --num_rounds ${num_rounds} \
-    --local_epochs ${local_epochs} \
-    --patience ${patience} \
-    --few_shot_ratio ${few_shot_ratio} \
-    --aggregation_strategy ${aggregation_strategy} \
-    --similarity_threshold ${similarity_threshold} \
-    --gamma ${gamma} \
-    --codebook_fill_strategy ${codebook_fill_strategy} \
-    --client_data_types ${client_data_types[@]} \
-    --clients_disable_mustd ${clients_disable_mustd[@]} \
-    --Tin ${Tin} \
-    --Tout ${Tout} \
-    --config_path ${config_path} \
-    --ablation_config_path ${ablation_config_path} \
-    --log_dir ${log_dir} \
-    --results_path ${results_path} \
-    --checkpoint_path ${checkpoint_path} \
-    --base_data_path ${base_data_path} \
+    --cuda-id ${CUDA_ID} \
+    --seed ${SEED} \
+    --num_rounds ${NUM_ROUNDS} \
+    --local_epochs ${LOCAL_EPOCHS} \
+    --patience ${PATIENCE} \
+    --few_shot_ratio ${FEW_SHOT_RATIO} \
+    --aggregation_strategy ${AGGREGATION_STRATEGY} \
+    --similarity_threshold ${SIMILARITY_THRESHOLD} \
+    --gamma ${GAMMA} \
+    --memory_fill_strategy ${MEMORY_FILL_STRATEGY} \
+    --client_data_types ${CLIENT_DATA_TYPES[@]} \
+    --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
+    --Tin ${TIN} \
+    --Tout ${TOUT} \
+    --config_path ${CONFIG_PATH} \
+    --backbone_config_path ${backbone_config_path} \
+    --log_dir ${LOG_DIR} \
+    --results_path ${RESULTS_PATH} \
+    --checkpoint_path ${CHECKPOINT_PATH} \
+    --base_data_path ${BASE_DATA_PATH} \
     --checkpoint_params Tin Tout few_shot_ratio \
     --log_params num_rounds local_epochs Tin few_shot_ratio
 
 echo "=================================================="
 echo "Few-shot 10% experiment completed!"
-echo "Results saved to: ${results_path}"
-echo "=================================================="
-
-
-
-echo "=================================================="
-echo "Few-shot Learning Experiment: 10% Training Data"
-echo "=================================================="
-echo "Clients: ${client_data_types[@]}"
-echo "Few-shot ratio: ${few_shot_ratio} (10%)"
-echo "Rounds: ${num_rounds}"
-echo "Local epochs: ${local_epochs}"
-echo "Seed: ${seed}"
-echo "=================================================="
-Tout=192
-python federated_learning_main.py \
-    --cuda-id ${cuda_id} \
-    --seed ${seed} \
-    --num_rounds ${num_rounds} \
-    --local_epochs ${local_epochs} \
-    --patience ${patience} \
-    --few_shot_ratio ${few_shot_ratio} \
-    --aggregation_strategy ${aggregation_strategy} \
-    --similarity_threshold ${similarity_threshold} \
-    --gamma ${gamma} \
-    --codebook_fill_strategy ${codebook_fill_strategy} \
-    --client_data_types ${client_data_types[@]} \
-    --clients_disable_mustd ${clients_disable_mustd[@]} \
-    --Tin ${Tin} \
-    --Tout ${Tout} \
-    --config_path ${config_path} \
-    --ablation_config_path ${ablation_config_path} \
-    --log_dir ${log_dir} \
-    --results_path ${results_path} \
-    --checkpoint_path ${checkpoint_path} \
-    --base_data_path ${base_data_path} \
-    --checkpoint_params Tin Tout few_shot_ratio \
-    --log_params num_rounds local_epochs Tin few_shot_ratio
-
-echo "=================================================="
-echo "Few-shot 10% experiment completed!"
-echo "Results saved to: ${results_path}"
-echo "=================================================="
-
-
-echo "=================================================="
-echo "Few-shot Learning Experiment: 10% Training Data"
-echo "=================================================="
-echo "Clients: ${client_data_types[@]}"
-echo "Few-shot ratio: ${few_shot_ratio} (10%)"
-echo "Rounds: ${num_rounds}"
-echo "Local epochs: ${local_epochs}"
-echo "Seed: ${seed}"
-echo "=================================================="
-Tout=336
-python federated_learning_main.py \
-    --cuda-id ${cuda_id} \
-    --seed ${seed} \
-    --num_rounds ${num_rounds} \
-    --local_epochs ${local_epochs} \
-    --patience ${patience} \
-    --few_shot_ratio ${few_shot_ratio} \
-    --aggregation_strategy ${aggregation_strategy} \
-    --similarity_threshold ${similarity_threshold} \
-    --gamma ${gamma} \
-    --codebook_fill_strategy ${codebook_fill_strategy} \
-    --client_data_types ${client_data_types[@]} \
-    --clients_disable_mustd ${clients_disable_mustd[@]} \
-    --Tin ${Tin} \
-    --Tout ${Tout} \
-    --config_path ${config_path} \
-    --ablation_config_path ${ablation_config_path} \
-    --log_dir ${log_dir} \
-    --results_path ${results_path} \
-    --checkpoint_path ${checkpoint_path} \
-    --base_data_path ${base_data_path} \
-    --checkpoint_params Tin Tout few_shot_ratio \
-    --log_params num_rounds local_epochs Tin few_shot_ratio
-
-echo "=================================================="
-echo "Few-shot 10% experiment completed!"
-echo "Results saved to: ${results_path}"
+echo "Results saved to: ${RESULTS_PATH}"
 echo "=================================================="
 
 
@@ -159,40 +77,121 @@ echo "=================================================="
 echo "=================================================="
 echo "Few-shot Learning Experiment: 10% Training Data"
 echo "=================================================="
-echo "Clients: ${client_data_types[@]}"
-echo "Few-shot ratio: ${few_shot_ratio} (10%)"
-echo "Rounds: ${num_rounds}"
-echo "Local epochs: ${local_epochs}"
-echo "Seed: ${seed}"
+echo "Clients: ${CLIENT_DATA_TYPES[@]}"
+echo "Few-shot ratio: ${FEW_SHOT_RATIO} (10%)"
+echo "Rounds: ${NUM_ROUNDS}"
+echo "Local epochs: ${LOCAL_EPOCHS}"
+echo "Seed: ${SEED}"
 echo "=================================================="
-Tout=720
-client_data_types=("ETTm1" "ETTm2" "electricity" "weather")
+TOUT=192
 python federated_learning_main.py \
-    --cuda-id ${cuda_id} \
-    --seed ${seed} \
-    --num_rounds ${num_rounds} \
-    --local_epochs ${local_epochs} \
-    --patience ${patience} \
-    --few_shot_ratio ${few_shot_ratio} \
-    --aggregation_strategy ${aggregation_strategy} \
-    --similarity_threshold ${similarity_threshold} \
-    --gamma ${gamma} \
-    --codebook_fill_strategy ${codebook_fill_strategy} \
-    --client_data_types ${client_data_types[@]} \
-    --clients_disable_mustd ${clients_disable_mustd[@]} \
-    --Tin ${Tin} \
-    --Tout ${Tout} \
-    --config_path ${config_path} \
-    --ablation_config_path ${ablation_config_path} \
-    --log_dir ${log_dir} \
-    --results_path ${results_path} \
-    --checkpoint_path ${checkpoint_path} \
-    --base_data_path ${base_data_path} \
+    --cuda-id ${CUDA_ID} \
+    --seed ${SEED} \
+    --num_rounds ${NUM_ROUNDS} \
+    --local_epochs ${LOCAL_EPOCHS} \
+    --patience ${PATIENCE} \
+    --few_shot_ratio ${FEW_SHOT_RATIO} \
+    --aggregation_strategy ${AGGREGATION_STRATEGY} \
+    --similarity_threshold ${SIMILARITY_THRESHOLD} \
+    --gamma ${GAMMA} \
+    --memory_fill_strategy ${MEMORY_FILL_STRATEGY} \
+    --client_data_types ${CLIENT_DATA_TYPES[@]} \
+    --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
+    --Tin ${TIN} \
+    --Tout ${TOUT} \
+    --config_path ${CONFIG_PATH} \
+    --backbone_config_path ${backbone_config_path} \
+    --log_dir ${LOG_DIR} \
+    --results_path ${RESULTS_PATH} \
+    --checkpoint_path ${CHECKPOINT_PATH} \
+    --base_data_path ${BASE_DATA_PATH} \
     --checkpoint_params Tin Tout few_shot_ratio \
     --log_params num_rounds local_epochs Tin few_shot_ratio
 
 echo "=================================================="
 echo "Few-shot 10% experiment completed!"
-echo "Results saved to: ${results_path}"
+echo "Results saved to: ${RESULTS_PATH}"
+echo "=================================================="
+
+
+echo "=================================================="
+echo "Few-shot Learning Experiment: 10% Training Data"
+echo "=================================================="
+echo "Clients: ${CLIENT_DATA_TYPES[@]}"
+echo "Few-shot ratio: ${FEW_SHOT_RATIO} (10%)"
+echo "Rounds: ${NUM_ROUNDS}"
+echo "Local epochs: ${LOCAL_EPOCHS}"
+echo "Seed: ${SEED}"
+echo "=================================================="
+TOUT=336
+python federated_learning_main.py \
+    --cuda-id ${CUDA_ID} \
+    --seed ${SEED} \
+    --num_rounds ${NUM_ROUNDS} \
+    --local_epochs ${LOCAL_EPOCHS} \
+    --patience ${PATIENCE} \
+    --few_shot_ratio ${FEW_SHOT_RATIO} \
+    --aggregation_strategy ${AGGREGATION_STRATEGY} \
+    --similarity_threshold ${SIMILARITY_THRESHOLD} \
+    --gamma ${GAMMA} \
+    --memory_fill_strategy ${MEMORY_FILL_STRATEGY} \
+    --client_data_types ${CLIENT_DATA_TYPES[@]} \
+    --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
+    --Tin ${TIN} \
+    --Tout ${TOUT} \
+    --config_path ${CONFIG_PATH} \
+    --backbone_config_path ${backbone_config_path} \
+    --log_dir ${LOG_DIR} \
+    --results_path ${RESULTS_PATH} \
+    --checkpoint_path ${CHECKPOINT_PATH} \
+    --base_data_path ${BASE_DATA_PATH} \
+    --checkpoint_params Tin Tout few_shot_ratio \
+    --log_params num_rounds local_epochs Tin few_shot_ratio
+
+echo "=================================================="
+echo "Few-shot 10% experiment completed!"
+echo "Results saved to: ${RESULTS_PATH}"
+echo "=================================================="
+
+
+
+echo "=================================================="
+echo "Few-shot Learning Experiment: 10% Training Data"
+echo "=================================================="
+echo "Clients: ${CLIENT_DATA_TYPES[@]}"
+echo "Few-shot ratio: ${FEW_SHOT_RATIO} (10%)"
+echo "Rounds: ${NUM_ROUNDS}"
+echo "Local epochs: ${LOCAL_EPOCHS}"
+echo "Seed: ${SEED}"
+echo "=================================================="
+TOUT=720
+CLIENT_DATA_TYPES=("ETTm1" "ETTm2" "electricity" "weather")
+python federated_learning_main.py \
+    --cuda-id ${CUDA_ID} \
+    --seed ${SEED} \
+    --num_rounds ${NUM_ROUNDS} \
+    --local_epochs ${LOCAL_EPOCHS} \
+    --patience ${PATIENCE} \
+    --few_shot_ratio ${FEW_SHOT_RATIO} \
+    --aggregation_strategy ${AGGREGATION_STRATEGY} \
+    --similarity_threshold ${SIMILARITY_THRESHOLD} \
+    --gamma ${GAMMA} \
+    --memory_fill_strategy ${MEMORY_FILL_STRATEGY} \
+    --client_data_types ${CLIENT_DATA_TYPES[@]} \
+    --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
+    --Tin ${TIN} \
+    --Tout ${TOUT} \
+    --config_path ${CONFIG_PATH} \
+    --backbone_config_path ${backbone_config_path} \
+    --log_dir ${LOG_DIR} \
+    --results_path ${RESULTS_PATH} \
+    --checkpoint_path ${CHECKPOINT_PATH} \
+    --base_data_path ${BASE_DATA_PATH} \
+    --checkpoint_params Tin Tout few_shot_ratio \
+    --log_params num_rounds local_epochs Tin few_shot_ratio
+
+echo "=================================================="
+echo "Few-shot 10% experiment completed!"
+echo "Results saved to: ${RESULTS_PATH}"
 echo "=================================================="
 

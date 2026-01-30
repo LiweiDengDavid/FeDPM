@@ -1,18 +1,5 @@
-# Ablation Study Configuration for Federated VQ-VAE
-# This file contains ablation parameters for the diversity loss, encoder architecture, and other experimental settings
 
-# Codebook Diversity Loss Parameters
-
-codebook_diversity:
-  # Enable/disable diversity loss
-  enable_diversity_loss: False
-  # Weight factor for diversity loss (lambda in the loss equation)
-  diversity_loss_weight: 10
-  # Type of diversity loss: 'l2_distance', 'cosine_similarity', 'repulsion'
-  diversity_loss_type: 'cosine_similarity'
-  # Temperature parameter for cosine similarity based diversity (higher = stricter diversity)
-  diversity_temperature: 0.0
-
+# This file contains ablation parameters for encoder architecture, and other experimental settings
 # Encoder Architecture Parameters
 encoder_config:
   # Type of encoder backbone: 'cnn', 'fc', 'transformer', 'lstm', 'gru'

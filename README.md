@@ -79,8 +79,8 @@ We evaluate the framework's robustness using only a fraction of the local data:
 
 ## ⚙️ Configuration
 You can customize the training by modifying:
-*   `vqvae.json`: Codebook size, embedding dimension, and compression factor.
-*   `Ablation_args_transformer.yaml`: Backbone Transformer hyperparameters.
+*   `vqvae.json`: Memory size, embedding dimension, and compression factor (Patch Len).
+*   `transformer_args.yaml`: Backbone Transformer hyperparameters.
 *   `cuda_id`: GPU device ID in the `.sh` scripts.
 
 ## 🌟 Citation

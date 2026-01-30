@@ -11,50 +11,39 @@ import seaborn as sns
 from collections import OrderedDict
 
 from lib.utils.results_logger import human_count_params
-from lib.models import get_model_class
+# from lib.models import get_model_class
 from lib.models.decode import XcodeYtimeDecoder, MuStdModel
 from lib.models.revin import RevIN
 from lib.models.metrics import pearsoncor
 from lib.utils.data_utils import create_time_series_dataloader, get_params, loss_fn
-from lib.models.vqvae import VectorQuantizer, Encoder # Import Encoder and VectorQuantizer
+from lib.models.Encoder_and_Retrieval import PMR, Encoder # Import Encoder and PMR (Prototypical Memories Retrieval)
 
 # #############################################################################
-# 2. Federated Learning Components: Server and Client
+# 2. FeDPM Components: Server and Client
 # #############################################################################
 
 class Server:
     """
-    The Server in a Federated Learning setup.
+    The Server in a FeDPM setup.
     It holds the global model and aggregates updates from clients.
     """
-    def __init__(self, vqvae_config, device, logger, aggregation_strategy='fedavg', similarity_threshold=0.5,
-                 enable_diversity_loss=False, diversity_loss_weight=0.1, diversity_loss_type='repulsion', 
-                 diversity_temperature=0.5, codebook_fill_strategy='random_isolated', gamma=0.95):
+    def __init__(self, args, device, logger, aggregation_strategy='fedavg', similarity_threshold=0.5,
+                 memory_fill_strategy='random_isolated', gamma=0.95):
         self.logger = logger
+        self.args = args
         self.logger.info(f"Initializing Server with aggregation strategy: {aggregation_strategy}")
         self.device = device
         self.strategy = aggregation_strategy
         self.similarity_threshold = similarity_threshold
-        self.codebook_fill_strategy = codebook_fill_strategy
+        self.memory_fill_strategy = memory_fill_strategy
         self.gamma = gamma
         
-        # Diversity loss parameters
-        self.enable_diversity_loss = enable_diversity_loss
-        self.diversity_loss_weight = diversity_loss_weight
-        self.diversity_loss_type = diversity_loss_type
-        self.diversity_temperature = diversity_temperature
-        
-        if self.enable_diversity_loss:
-            self.logger.info(f"Codebook diversity loss enabled:")
-            self.logger.info(f"  Type: {self.diversity_loss_type}")
-            self.logger.info(f"  Weight: {self.diversity_loss_weight}")
-            self.logger.info(f"  Temperature: {self.diversity_temperature}")
-        
-        # The global model only contains the vector quantizer (codebook)
-        self.global_model = VectorQuantizer(
-            num_embeddings=vqvae_config['num_embeddings'],
-            embedding_dim=vqvae_config['embedding_dim'],
-            commitment_cost=vqvae_config['commitment_cost']
+        # The global model only contains the vector quantizer (memory)
+        # PMR: Prototypical Memories Retrieval
+        self.global_model = PMR(
+            num_embeddings=args.num_embeddings,
+            embedding_dim=args.embedding_dim,
+            commitment_cost=args.commitment_cost
         ).to(self.device)
 
     def get_global_weights(self):
@@ -62,50 +51,47 @@ class Server:
         return self.global_model.state_dict()
 
     def _fed_avg(self, client_updates, client_data_sizes):
-        """ Aggregates using weighted Federated Averaging for codebooks. """
-        self.logger.info("Server: Aggregating client codebooks using FedAvg (weighted)...")
+        """ Aggregates using weighted Federated Averaging for memories. """
+        self.logger.info("Server: Aggregating client memories using FedAvg (weighted)...")
         total_data_size = sum(client_data_sizes)
         agg_weights = OrderedDict()
 
-        # client_updates are codebook tensors
-        for i, codebook_tensor in enumerate(client_updates):
+        # client_updates are memory tensors
+        for i, memory_tensor in enumerate(client_updates):
             data_size = client_data_sizes[i]
             weight_factor = data_size / total_data_size
             if i == 0:
-                agg_weights['_embedding.weight'] = codebook_tensor.clone() * weight_factor
+                agg_weights['_embedding.weight'] = memory_tensor.clone() * weight_factor
             else:
-                agg_weights['_embedding.weight'] += codebook_tensor.clone() * weight_factor
+                agg_weights['_embedding.weight'] += memory_tensor.clone() * weight_factor
         
         return agg_weights
 
-    def _aggregate_codebook_by_cos_similarity(self, client_codebooks, round_num=None, save_dir=None, client_names=None, client_data_sizes=None, client_usage_counts=None):
+    def _aggregate_memory_by_cos_similarity(self, client_memories, client_data_sizes=None, client_usage_counts=None):
         """
-        Aggregates codebooks based on cosine similarity of individual code vectors.
+        Aggregates memories based on cosine similarity of individual prototypes.
         
         Args:
-            client_codebooks: List of codebook tensors
-            round_num: Current round number (for visualization)
-            save_dir: Directory to save visualizations (if None, no visualization)
-            client_names: List of client names (optional)
+            client_memories: List of memory tensors
             client_data_sizes: List of client data sizes (for client_personalized strategy)
             client_usage_counts: List of usage count tensors (for client_personalized strategy)
         """
-        self.logger.info(f"Server: Aggregating VQ codebook using cosine similarity strategy (Similarity threshold {self.similarity_threshold})...")
-        num_clients = len(client_codebooks)
-        num_codes, code_dim = client_codebooks[0].shape
+        self.logger.info(f"Server: Aggregating VQ memory using cosine similarity strategy (Similarity threshold {self.similarity_threshold})...")
+        num_clients = len(client_memories)
+        num_prototypes, prototype_dim = client_memories[0].shape
         
         # TODO: You can change to matrix operations (The code of the next part, but it has been commented out) for efficiency if needed.
-        # 1. Build adjacency list for the graph of all code vectors
-        # A node is represented by a tuple (client_id, vector_index)
-        # represent client c code vector i as node (c, i), connected to others if similar
-        adj = {(c, i): [] for c in range(num_clients) for i in range(num_codes)} 
+        # 1. Build adjacency list for the graph of all prototypes
+        # A node is represented by a tuple (client_id, prototype_index)
+        # represent client c prototype i as node (c, i), connected to others if similar
+        adj = {(c, i): [] for c in range(num_clients) for i in range(num_prototypes)} 
         
         for c1 in range(num_clients):
             for c2 in range(c1 + 1, num_clients):
-                cb1 = client_codebooks[c1]
-                cb2 = client_codebooks[c2]
+                cb1 = client_memories[c1]
+                cb2 = client_memories[c2]
                 
-                # Calculate cosine similarity matrix between two codebooks
+                # Calculate cosine similarity matrix between two memories
                 sim_matrix = F.cosine_similarity(cb1.unsqueeze(1), cb2.unsqueeze(0), dim=-1)
                 
                 # Add edges for similarities > threshold
@@ -116,11 +102,11 @@ class Server:
                     adj[node1].append(node2)
                     adj[node2].append(node1)
 
-        # 2. Find connected components (clusters of similar vectors) using BFS
+        # 2. Find connected components (clusters of similar prototypes) using BFS
         visited = set()
         clusters = []
         for c in range(num_clients):
-            for i in range(num_codes):
+            for i in range(num_prototypes):
                 node = (c, i)
                 if node not in visited:
                     cluster = []
@@ -135,22 +121,22 @@ class Server:
                                 q.append(neighbor)
                     clusters.append(cluster)
         
-        self.logger.info(f"Found {len(clusters)} clusters among {num_clients * num_codes} code vectors.")
+        self.logger.info(f"Found {len(clusters)} clusters among {num_clients * num_prototypes} prototypes.")
 
-        # 3. Aggregate vectors within each cluster
-        # Store as (mean_vector, cluster_size) tuples
+        # 3. Aggregate prototypes within each cluster
+        # Store as (mean_prototype, cluster_size) tuples
         # Only consider clusters with 2 or more nodes as valid clusters
-        aggregated_vectors_info = []
+        aggregated_prototypes_info = []
         valid_clusters = []
         isolated_nodes = set()
         
         for cluster in clusters:
             if len(cluster) >= 2:
                 # Valid cluster: has 2 or more nodes
-                vectors_in_cluster = [client_codebooks[c_id][v_idx] for c_id, v_idx in cluster]
-                # Simple arithmetic mean for vectors in a cluster
-                mean_vector = torch.stack(vectors_in_cluster).mean(dim=0)
-                aggregated_vectors_info.append((mean_vector, len(cluster)))
+                prototypes_in_cluster = [client_memories[c_id][v_idx] for c_id, v_idx in cluster]
+                # Simple arithmetic mean for prototypes in a cluster
+                mean_prototype = torch.stack(prototypes_in_cluster).mean(dim=0)
+                aggregated_prototypes_info.append((mean_prototype, len(cluster)))
                 valid_clusters.append(cluster)
             else:
                 # Isolated node: cluster with only 1 node
@@ -158,100 +144,100 @@ class Server:
         
         self.logger.info(f"Valid clusters (size >= 2): {len(valid_clusters)}, Isolated nodes: {len(isolated_nodes)}")
 
-        # Sort aggregated vectors by cluster size (descending)
-        # This prioritizes vectors that represent larger clusters (more common patterns)
-        aggregated_vectors_info.sort(key=lambda x: x[1], reverse=True)
+        # Sort aggregated prototypes by cluster size (descending)
+        # This prioritizes prototypes that represent larger clusters (more common patterns)
+        aggregated_prototypes_info.sort(key=lambda x: x[1], reverse=True)
         
-        # Extract just the vectors
-        aggregated_vectors = [x[0] for x in aggregated_vectors_info]
+        # Extract just the prototypes
+        aggregated_prototypes = [x[0] for x in aggregated_prototypes_info]
 
-        # 4. Construct the new global codebook
-        new_codebook = torch.zeros_like(client_codebooks[0])
+        # 4. Construct the new global memory
+        new_memory = torch.zeros_like(client_memories[0])
         
-        # Apply gamma to limit shared vectors
-        max_shared = int(num_codes * self.gamma)
-        num_available_aggregated = len(aggregated_vectors)
+        # Apply gamma to limit shared prototypes
+        max_shared = int(num_prototypes * self.gamma)
+        num_available_aggregated = len(aggregated_prototypes)
         
-        # Number of shared vectors to actually use (limited by gamma and availability)
+        # Number of shared prototypes to actually use (limited by gamma and availability)
         num_aggregated = min(num_available_aggregated, max_shared)
         
         if num_aggregated > 0:
-            new_codebook[:num_aggregated] = torch.stack(aggregated_vectors[:num_aggregated])
+            new_memory[:num_aggregated] = torch.stack(aggregated_prototypes[:num_aggregated])
             
         # Fill the rest based on strategy
-        remaining_slots = num_codes - num_aggregated
+        remaining_slots = num_prototypes - num_aggregated
         if remaining_slots > 0:
-                if self.codebook_fill_strategy == 'random_isolated':
-                    # Collect isolated vectors (nodes not in valid clusters)
-                    isolated_vectors = []
+                if self.memory_fill_strategy == 'random_isolated':
+                    # Collect isolated prototypes (nodes not in valid clusters)
+                    isolated_prototypes = []
                     for c_id, v_idx in isolated_nodes:
-                        isolated_vectors.append(client_codebooks[c_id][v_idx])
+                        isolated_prototypes.append(client_memories[c_id][v_idx])
                     
-                    if len(isolated_vectors) > 0:
-                        # Randomly select from isolated vectors to fill the rest
-                        num_to_fill = min(remaining_slots, len(isolated_vectors))
-                        indices = torch.randperm(len(isolated_vectors))[:num_to_fill]
+                    if len(isolated_prototypes) > 0:
+                        # Randomly select from isolated prototypes to fill the rest
+                        num_to_fill = min(remaining_slots, len(isolated_prototypes))
+                        indices = torch.randperm(len(isolated_prototypes))[:num_to_fill]
                         for i, idx in enumerate(indices):
-                            new_codebook[num_aggregated + i] = isolated_vectors[idx]
-                        self.logger.info(f"Filled {num_to_fill} slots with isolated vectors (from {len(isolated_vectors)} available).")
+                            new_memory[num_aggregated + i] = isolated_prototypes[idx]
+                        self.logger.info(f"Filled {num_to_fill} slots with isolated prototypes (from {len(isolated_prototypes)} available).")
                 
-                elif self.codebook_fill_strategy == 'client_personalized':
-                    # Client-personalized strategy: each client gets its own personalized vectors
-                    # Returns a list of codebooks (one per client) instead of a single global codebook
-                    self.logger.info(f"Using client_personalized strategy: each client will have personalized vectors in remaining {remaining_slots} slots.")
+                elif self.memory_fill_strategy == 'client_personalized':
+                    # Client-personalized strategy: each client gets its own personalized prototypes
+                    # Returns a list of memories (one per client) instead of a single global memory
+                    self.logger.info(f"Using client_personalized strategy: each client will have personalized prototypes in remaining {remaining_slots} slots.")
                     
-                    # Build personalized codebooks for each client
-                    personalized_codebooks = []
+                    # Build personalized memories for each client
+                    personalized_memories = []
                     
                     for c_id in range(num_clients):
-                        # Start with the shared aggregated vectors
-                        client_codebook = new_codebook.clone()
+                        # Start with the shared aggregated prototypes
+                        client_memory = new_memory.clone()
                         
                         # Get this client's isolated nodes
                         client_isolated_nodes = [(cid, vid) for cid, vid in isolated_nodes if cid == c_id]
                         
                         if len(client_isolated_nodes) > 0:
-                            # Calculate cross-client similarity and usage frequency for each isolated vector
-                            # We want vectors with LOWEST similarity to other clients (most personalized)
+                            # Calculate cross-client similarity and usage frequency for each isolated prototype
+                            # We want prototypes with LOWEST similarity to other clients (most personalized)
                             # AND high usage frequency (not noise)
-                            vector_similarities = []
+                            prototype_similarities = []
                             
                             for node in client_isolated_nodes:
                                 c_id_node, v_idx_node = node
-                                vector = client_codebooks[c_id_node][v_idx_node]
+                                prototype = client_memories[c_id_node][v_idx_node]
                                 
-                                # Calculate average similarity to all OTHER clients' codebooks
+                                # Calculate average similarity to all OTHER clients' memories
                                 total_sim = 0.0
                                 count = 0
                                 for other_c_id in range(num_clients):
                                     if other_c_id != c_id:
-                                        # Normalize vectors for cosine similarity
-                                        normalized_vector = F.normalize(vector.unsqueeze(0), p=2, dim=1)
-                                        normalized_other_codebook = F.normalize(client_codebooks[other_c_id], p=2, dim=1)
+                                        # Normalize prototypes for cosine similarity
+                                        normalized_prototype = F.normalize(prototype.unsqueeze(0), p=2, dim=1)
+                                        normalized_other_memory = F.normalize(client_memories[other_c_id], p=2, dim=1)
                                         
-                                        # Compute similarity with all vectors in other client's codebook
-                                        similarities = torch.mm(normalized_vector, normalized_other_codebook.t())
+                                        # Compute similarity with all prototypes in other client's memory
+                                        similarities = torch.mm(normalized_prototype, normalized_other_memory.t())
                                         mean_sim = similarities.mean().item()
                                         total_sim += mean_sim
                                         count += 1
                                 
                                 avg_cross_client_sim = total_sim / count if count > 0 else 0.0
                                 
-                                # Get usage frequency for this vector
+                                # Get usage frequency for this prototype
                                 if client_usage_counts is not None and c_id < len(client_usage_counts):
                                     usage_count = client_usage_counts[c_id][v_idx_node].item()
                                 else:
                                     usage_count = 1.0  # Default if usage not tracked
                                 
-                                # Store (node, vector, avg_similarity, usage_count)
-                                vector_similarities.append((node, vector, avg_cross_client_sim, usage_count))
+                                # Store (node, prototype, avg_similarity, usage_count)
+                                prototype_similarities.append((node, prototype, avg_cross_client_sim, usage_count))
                             
-                            # Normalize usage counts within this client's isolated vectors
-                            max_usage = max(item[3] for item in vector_similarities)
+                            # Normalize usage counts within this client's isolated prototypes
+                            max_usage = max(item[3] for item in prototype_similarities)
                             
-                            # Compute personalization score for each vector
-                            scored_vectors = []
-                            for node, vector, avg_sim, usage in vector_similarities:
+                            # Compute personalization score for each prototype
+                            scored_prototypes = []
+                            for node, prototype, avg_sim, usage in prototype_similarities:
                                 # Normalize usage to [0, 1]
                                 normalized_usage = usage / max_usage if max_usage > 0 else 0.0
                                 
@@ -260,322 +246,63 @@ class Server:
                                 lambda_weight = 1.0  # Balance between similarity and usage (adjustable)
                                 personalization_score = -avg_sim + lambda_weight * normalized_usage
                                 
-                                scored_vectors.append((node, vector, personalization_score, avg_sim, usage))
+                                scored_prototypes.append((node, prototype, personalization_score, avg_sim, usage))
                             
                             # Sort by personalization score (descending): highest score = most personalized + most used
-                            scored_vectors.sort(key=lambda x: x[2], reverse=True)
+                            scored_prototypes.sort(key=lambda x: x[2], reverse=True)
                             
-                            # Select top remaining_slots most personalized vectors
-                            num_to_select = min(remaining_slots, len(scored_vectors))
-                            selected_vectors = [item[1] for item in scored_vectors[:num_to_select]]
+                            # Select top remaining_slots most personalized prototypes
+                            num_to_select = min(remaining_slots, len(scored_prototypes))
+                            selected_prototypes = [item[1] for item in scored_prototypes[:num_to_select]]
                             
-                            # Fill the remaining slots with selected personalized vectors
-                            for i, vec in enumerate(selected_vectors):
-                                client_codebook[num_aggregated + i] = vec
+                            # Fill the remaining slots with selected personalized prototypes
+                            for i, vec in enumerate(selected_prototypes):
+                                client_memory[num_aggregated + i] = vec
                             
                             # Log selection details
                             if num_to_select > 0:
-                                top_score = scored_vectors[0]
-                                bottom_score = scored_vectors[num_to_select - 1]
+                                top_score = scored_prototypes[0]
+                                bottom_score = scored_prototypes[num_to_select - 1]
                                 self.logger.info(
                                     f"Client {c_id}: Filled {num_to_select} personalized slots | "
                                     f"Top: score={top_score[2]:.3f} (sim={top_score[3]:.3f}, usage={top_score[4]:.0f}) | "
                                     f"Bottom: score={bottom_score[2]:.3f} (sim={bottom_score[3]:.3f}, usage={bottom_score[4]:.0f})"
                                 )
                         else:
-                            self.logger.warning(f"Client {c_id}: No isolated vectors available for personalization.")
+                            self.logger.warning(f"Client {c_id}: No isolated prototypes available for personalization.")
                         
-                        personalized_codebooks.append(client_codebook)
+                        personalized_memories.append(client_memory)
                     
-                    # Return the list of personalized codebooks instead of a single global one
-                    return personalized_codebooks
+                    # Return the list of personalized memories instead of a single global one
+                    return personalized_memories
                 
-                elif self.codebook_fill_strategy == 'none':
+                elif self.memory_fill_strategy == 'none':
                     # Do nothing, remaining slots stay as zeros (from torch.zeros_like initialization)
                     pass
                 else:
-                    self.logger.warning(f"Unknown codebook fill strategy: {self.codebook_fill_strategy}. Using 'none'.")
+                    self.logger.warning(f"Unknown memory fill strategy: {self.memory_fill_strategy}. Using 'none'.")
         
-        # Visualize clustering results if save_dir is provided
-        if save_dir is not None and round_num is not None:
-            self._visualize_clustering_results(
-                client_codebooks=client_codebooks,
-                clusters=valid_clusters,  # Only pass valid clusters (size >= 2)
-                visited=visited,
-                adj=adj,  # Pass adjacency matrix for graph visualization
-                round_num=round_num,
-                save_dir=save_dir,
-                client_names=client_names
-            )
-        
-        return new_codebook
+        return new_memory
     
-    def _visualize_clustering_results(self, client_codebooks, clusters, visited, adj, round_num, save_dir, client_names=None):
+    def _cos_similarity(self, client_updates, client_data_sizes, client_usage_counts=None):
         """
-        Visualize clustering results using a Grid Layout to clearly show cluster composition.
-        Focuses on Multi-Client clusters where aggregation happens.
-        """
-        try:
-            import networkx as nx
-            import math
-        except ImportError as e:
-            self.logger.error(f"Missing required library for graph visualization: {e}")
-            return
-        
-        os.makedirs(save_dir, exist_ok=True)
-        num_clients = len(client_codebooks)
-        
-        if client_names is None:
-            client_names = [f"C{i}" for i in range(num_clients)]
-        
-        # 1. Filter and Sort Clusters
-        # We are most interested in clusters that merge vectors from different clients.
-        multi_client_clusters = []
-        single_client_clusters = []
-        
-        for cluster in clusters:
-            clients_in_cluster = set(c for c, _ in cluster)
-            if len(clients_in_cluster) > 1:
-                multi_client_clusters.append(cluster)
-            else:
-                single_client_clusters.append(cluster)
-        
-        # Sort multi-client clusters by size (descending)
-        multi_client_clusters.sort(key=len, reverse=True)
-        
-        self.logger.info(f"Visualization processing {len(clusters)} total clusters:")
-        self.logger.info(f"  - Multi-Client (Cross-client patterns): {len(multi_client_clusters)}")
-        self.logger.info(f"  - Single-Client (Local/Isolated patterns): {len(single_client_clusters)}")
-
-        # 2. Setup Grid Layout
-        clusters_to_plot = multi_client_clusters
-        title_prefix = f"Multi-Client Clusters (Found {len(multi_client_clusters)}/{len(clusters)})"
-        
-        if len(clusters_to_plot) == 0:
-            self.logger.info("No multi-client clusters found to visualize. Plotting sample single-client clusters.")
-            clusters_to_plot = single_client_clusters[:20] 
-            title_prefix = f"Top 20 Single-Client Clusters (No Multi-Client Found in {len(clusters)})"
-
-        num_plots = len(clusters_to_plot)
-        if num_plots == 0:
-             return
-
-        cols = 5
-        rows = math.ceil(num_plots / cols)
-        
-        # Limit figure size
-        if rows > 50:
-            self.logger.warning(f"Too many clusters ({num_plots}), truncating visualization to top 250.")
-            clusters_to_plot = clusters_to_plot[:250]
-            num_plots = len(clusters_to_plot)
-            rows = math.ceil(num_plots / cols)
-
-        fig_height = max(4, rows * 3)
-        fig, axes = plt.subplots(rows, cols, figsize=(20, fig_height))
-        
-        if num_plots == 1:
-            axes = [np.array([axes])] # Make it iterable
-        else:
-            axes = axes.flatten()
-        
-        # Color map for clients
-        client_colors = plt.cm.tab10(np.linspace(0, 1, num_clients))
-
-        # 3. Draw each cluster
-        for idx, cluster in enumerate(clusters_to_plot):
-            ax = axes[idx] if isinstance(axes, np.ndarray) else axes[idx]
-            
-            # Create a small graph for this cluster
-            G = nx.Graph()
-            cluster_nodes_set = set(cluster)
-            
-            for client_id, vector_idx in cluster:
-                node_id = f"{client_id}-{vector_idx}"
-                # Label format: C{id}-{vec}
-                label_str = f"C{client_id}-{vector_idx}"
-                G.add_node(node_id, client_id=client_id, label=label_str)
-            
-            # Add edges from adj
-            for node in cluster:
-                if node in adj:
-                    for neighbor in adj[node]:
-                        if neighbor in cluster_nodes_set and node < neighbor:
-                             n1 = f"{node[0]}-{node[1]}"
-                             n2 = f"{neighbor[0]}-{neighbor[1]}"
-                             G.add_edge(n1, n2)
-            
-            # Layout
-            if len(G.nodes) > 0:
-                pos = nx.spring_layout(G, seed=42, k=1.5) 
-                
-                # Node colors
-                node_color_list = [client_colors[G.nodes[n]['client_id']] for n in G.nodes()]
-                
-                # Draw
-                nx.draw_networkx_nodes(G, pos, ax=ax, node_color=node_color_list, node_size=400, alpha=0.9)
-                nx.draw_networkx_edges(G, pos, ax=ax, alpha=0.5)
-                
-                # Draw labels
-                labels = nx.get_node_attributes(G, 'label')
-                nx.draw_networkx_labels(G, pos, labels, ax=ax, font_size=9, font_weight='bold')
-            
-            ax.set_title(f"Cluster {idx+1}\nSize: {len(cluster)}", fontsize=10)
-            ax.axis('off')
-
-        # Hide unused subplots
-        if isinstance(axes, np.ndarray):
-            for i in range(num_plots, len(axes)):
-                axes[i].axis('off')
-
-        # Global Title and Legend
-        plt.suptitle(f"{title_prefix} - Round {round_num}\nThreshold: {self.similarity_threshold}", fontsize=16, y=1.00)
-        
-        # Create legend for clients
-        from matplotlib.lines import Line2D
-        legend_elements = [Line2D([0], [0], marker='o', color='w', 
-                                 markerfacecolor=client_colors[i], markersize=10,
-                                 label=client_names[i] if i < len(client_names) else f"Client {i}")
-                          for i in range(num_clients)]
-        fig.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(0.99, 0.99), title="Clients")
-
-        plt.tight_layout()
-        save_path = os.path.join(save_dir, f'grid_clustering_round{round_num}.png')
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        plt.close()
-        
-        self.logger.info(f"Saved grid-based clustering visualization to {save_path}")
-    
-    
-    
-    # #############################################################################
-    # Alternative optimized version using matrix operations
-    # #############################################################################
-    # def _aggregate_codebook_by_cos_similarity(self, client_codebooks):
-    #     """
-    #     Aggregates codebooks based on cosine similarity of individual code vectors.
-    #     Optimized with matrix operations instead of nested loops.
-    #     Only considers similarity across different clients, not within the same client.
-    #     """
-    #     self.logger.info(f"Server: Aggregating VQ codebook using cosine similarity strategy (Similarity threshold {self.similarity_threshold})...")
-    #     num_clients = len(client_codebooks)
-    #     num_codes, code_dim = client_codebooks[0].shape
-        
-    #     # 1. Concatenate all codebooks: (num_clients * num_codes, code_dim)
-    #     all_codebooks = torch.cat(client_codebooks, dim=0)  # Shape: (num_clients * num_codes, code_dim)
-        
-    #     # 2. Normalize all vectors
-    #     normalized_all = F.normalize(all_codebooks, p=2, dim=1)  # Shape: (num_clients * num_codes, code_dim)
-        
-    #     # 3. Compute full similarity matrix using matrix multiplication
-    #     sim_matrix = torch.mm(normalized_all, normalized_all.t())  # Shape: (num_clients * num_codes, num_clients * num_codes)
-        
-    #     # 4. Zero out diagonal (self-similarity)
-    #     mask_diagonal = torch.eye(sim_matrix.shape[0], device=self.device, dtype=torch.bool)
-    #     sim_matrix = sim_matrix.masked_fill(mask_diagonal, 0)
-        
-    #     # 5. Create mask for same-client pairs and zero them out
-    #     # For global index i, its client_id is i // num_codes
-    #     # Two vectors are from the same client if (i // num_codes) == (j // num_codes)
-    #     mask_same_client = torch.zeros_like(sim_matrix, dtype=torch.bool, device=self.device)
-    #     for i in range(num_clients * num_codes):
-    #         client_i = i // num_codes
-    #         for j in range(num_clients * num_codes):
-    #             client_j = j // num_codes
-    #             if client_i == client_j:
-    #                 mask_same_client[i, j] = True
-        
-    #     sim_matrix = sim_matrix.masked_fill(mask_same_client, 0)
-        
-    #     # 6. Find pairs with similarity > threshold
-    #     similar_indices = torch.where(sim_matrix > self.similarity_threshold)
-        
-    #     # 7. Build adjacency list from indices
-    #     adj = {i: [] for i in range(num_clients * num_codes)}
-    #     for i, j in zip(*similar_indices):
-    #         i_item, j_item = i.item(), j.item()
-    #         if i_item < j_item:  # Avoid duplicate edges
-    #             adj[i_item].append(j_item)
-    #             adj[j_item].append(i_item)
-        
-    #     # 8. Find connected components using BFS
-    #     visited = set()
-    #     clusters = []
-    #     for node in range(num_clients * num_codes):
-    #         if node not in visited:
-    #             cluster = []
-    #             q = [node]
-    #             visited.add(node)
-    #             while q:
-    #                 curr_node = q.pop(0)
-    #                 cluster.append(curr_node)
-    #                 for neighbor in adj[curr_node]:
-    #                     if neighbor not in visited:
-    #                         visited.add(neighbor)
-    #                         q.append(neighbor)
-    #             clusters.append(cluster)
-        
-    #     self.logger.info(f"Found {len(clusters)} clusters among {num_clients * num_codes} code vectors.")
-        
-    #     # 9. Aggregate vectors within each cluster using vectorized indexing
-    #     aggregated_vectors = []
-    #     for cluster in clusters:
-    #         # Use advanced indexing to get all vectors in cluster at once
-    #         vectors_in_cluster = all_codebooks[cluster]  # Shape: (cluster_size, code_dim)
-    #         mean_vector = vectors_in_cluster.mean(dim=0)
-    #         aggregated_vectors.append(mean_vector)
-        
-    #     # 10. Construct the new global codebook
-    #     num_aggregated = len(aggregated_vectors)
-        
-    #     if num_aggregated >= num_codes:
-    #         # Take the first `num_codes` aggregated vectors
-    #         new_codebook = torch.stack(aggregated_vectors[:num_codes])
-    #     else:
-    #         # Fill with aggregated vectors first
-    #         new_codebook = torch.zeros_like(client_codebooks[0])
-    #         if num_aggregated > 0:
-    #             new_codebook[:num_aggregated] = torch.stack(aggregated_vectors)
-            
-    #         # Fill remaining slots with isolated vectors
-    #         remaining_slots = num_codes - num_aggregated
-    #         if remaining_slots > 0:
-    #             isolated_indices = [i for i in range(num_clients * num_codes) if i not in visited]
-                
-    #             if len(isolated_indices) > 0:
-    #                 # Use vectorized indexing
-    #                 isolated_vectors = all_codebooks[isolated_indices]
-    #                 num_to_fill = min(remaining_slots, len(isolated_vectors))
-    #                 perm_indices = torch.randperm(len(isolated_vectors), device=self.device)[:num_to_fill]
-    #                 new_codebook[num_aggregated:num_aggregated + num_to_fill] = isolated_vectors[perm_indices]
-        
-    #     return new_codebook
-
-
-    def _cos_similarity(self, client_updates, client_data_sizes, round_num=None, save_dir=None, client_names=None, client_usage_counts=None):
-        """
-        Aggregation via Cosine Similarity for VQ codebook.
-        client_updates are expected to be a list of codebook tensors.
+        Aggregation via Cosine Similarity for VQ memory.
+        client_updates are expected to be a list of memory tensors.
         
         Args:
-            client_updates: List of codebook tensors
+            client_updates: List of memory tensors
             client_data_sizes: List of client data sizes
-            round_num: Current round number
-            save_dir: Directory to save visualizations
-            client_names: List of client names
             client_usage_counts: List of usage count tensors (for personalization)
         
         Returns:
-            - For 'random_isolated' or 'none' strategies: OrderedDict with single global codebook
+            - For 'random_isolated' or 'none' strategies: OrderedDict with single global memory
             - For 'client_personalized' strategy: List of OrderedDicts (one per client)
         """
-        self.logger.info(f"Server: Aggregating using 'cos_similarity' strategy for codebooks (Similarity threshold {self.similarity_threshold})...")
+        self.logger.info(f"Server: Aggregating using 'cos_similarity' strategy for memories (Similarity threshold {self.similarity_threshold})...")
         
-        # --- Aggregate VQ Codebook using Cosine Similarity ---
-        result = self._aggregate_codebook_by_cos_similarity(
+        # --- Aggregate VQ Memory using Cosine Similarity ---
+        result = self._aggregate_memory_by_cos_similarity(
             client_updates, 
-            round_num=round_num, 
-            save_dir=save_dir,
-            client_names=client_names,
             client_data_sizes=client_data_sizes,
             client_usage_counts=client_usage_counts
         )
@@ -584,9 +311,9 @@ class Server:
         if isinstance(result, list):
             # client_personalized strategy: return list of state_dicts
             final_agg_weights = []
-            for client_codebook in result:
+            for client_memory in result:
                 client_state_dict = OrderedDict()
-                client_state_dict['_embedding.weight'] = client_codebook
+                client_state_dict['_embedding.weight'] = client_memory
                 final_agg_weights.append(client_state_dict)
             return final_agg_weights
         else:
@@ -595,16 +322,13 @@ class Server:
             final_agg_weights['_embedding.weight'] = result
             return final_agg_weights
 
-    def aggregate(self, client_updates, client_data_sizes, round_num=None, save_dir=None, client_names=None, client_usage_counts=None):
+    def aggregate(self, client_updates, client_data_sizes, client_usage_counts=None):
         """
         Aggregates client model updates based on the chosen strategy.
         
         Args:
             client_updates: List of client model updates
             client_data_sizes: List of client data sizes
-            round_num: Current round number (for visualization)
-            save_dir: Directory to save visualizations
-            client_names: List of client names
             client_usage_counts: List of usage count tensors (for personalization)
             
         Note:
@@ -621,20 +345,17 @@ class Server:
             agg_weights = self._cos_similarity(
                 client_updates, 
                 client_data_sizes, 
-                round_num=round_num, 
-                save_dir=save_dir,
-                client_names=client_names,
                 client_usage_counts=client_usage_counts
             )
             
-            # Check if we have personalized codebooks
+            # Check if we have personalized memories
             if isinstance(agg_weights, list):
-                # client_personalized: load the first client's codebook to global model (they share the same aggregated part)
+                # client_personalized: load the first client's memory to global model (they share the same aggregated part)
                 # but return the list so clients can get their personalized versions
                 self.global_model.load_state_dict(agg_weights[0])
                 self.logger.info(f"Server: Aggregation complete by '{self.strategy}' strategy with 'client_personalized' fill. "
-                               f"Each client will receive personalized codebook.")
-                return agg_weights  # Return list of personalized codebooks
+                               f"Each client will receive personalized memory.")
+                return agg_weights  # Return list of personalized memories
             else:
                 # Standard aggregation
                 self.global_model.load_state_dict(agg_weights)
@@ -645,11 +366,11 @@ class Server:
 
 class Client:
     """
-    A Client in a Federated Learning setup.
+    A Client in a FeDPM setup.
     It has its own local data and local models (decode/mustd).
     It receives the global model, trains on its data, and sends back the update.
     """
-    def __init__(self, client_id, args, vqvae_config, device, logger):
+    def __init__(self, client_id, args, device, logger):
         self.client_id = client_id
         self.args = args
         self.device = device
@@ -688,7 +409,7 @@ class Client:
 
         # Initialize local models (specific to each client)
         Sin, Sout = params["Sin"], params["Sout"]
-        dim = vqvae_config['embedding_dim'] if not args.onehot else args.codebook_size
+        dim = args.embedding_dim if not args.onehot else args.num_embeddings
         
         # Get encoder and decoder configuration from args (loaded from Ablation_args.yaml)
         encoder_type = getattr(args, 'encoder_config_encoder_type', 'cnn')
@@ -699,16 +420,16 @@ class Client:
         rnn_layers = getattr(args, 'encoder_config_rnn_layers', 2)
         
         # Get VQVAE compression_factor
-        self.compression_factor = vqvae_config['compression_factor']
+        self.compression_factor = args.compression_factor
 
         # Encoder is now a local model
         self.model_encoder = Encoder(
             in_channels=1,
-            num_hiddens=vqvae_config['block_hidden_size'],
-            num_residual_layers=vqvae_config['num_residual_layers'],
-            num_residual_hiddens=vqvae_config['res_hidden_size'],
-            embedding_dim=vqvae_config['embedding_dim'],
-            compression_factor=vqvae_config['compression_factor'],
+            num_hiddens=args.block_hidden_size,
+            num_residual_layers=args.num_residual_layers,
+            num_residual_hiddens=args.res_hidden_size,
+            embedding_dim=args.embedding_dim,
+            compression_factor=args.compression_factor,
             encoder_type=encoder_type,
             seq_len=self.args.Tin,
             transformer_nhead=transformer_nhead,
@@ -717,16 +438,17 @@ class Client:
             rnn_layers=rnn_layers
         ).to(self.device)
 
-        # VQ is also local, but its codebook will be synced with the server
-        self.model_vq = VectorQuantizer(
-            num_embeddings=vqvae_config['num_embeddings'],
-            embedding_dim=vqvae_config['embedding_dim'],
-            commitment_cost=vqvae_config['commitment_cost']
+        # VQ is also local, but its memory will be synced with the server
+        # PMR: Prototypical Memories Retrieval
+        self.model_vq = PMR(
+            num_embeddings=args.num_embeddings,
+            embedding_dim=args.embedding_dim,
+            commitment_cost=args.commitment_cost
         ).to(self.device)
 
-        # Initialize codebook usage frequency counter for personalization
-        self.codebook_usage_count = torch.zeros(
-            vqvae_config['num_embeddings'], 
+        # Initialize memory usage frequency counter for personalization
+        self.memory_usage_count = torch.zeros(
+            args.num_embeddings, 
             device=self.device
         )
 
@@ -736,13 +458,13 @@ class Client:
             nhead=args.nhead,
             d_hid=args.d_hid,
             nlayers=args.nlayers,
-            seq_in_len=args.Tin // vqvae_config['compression_factor'],
+            seq_in_len=args.Tin // args.compression_factor,
             seq_out_len=args.Tout,
             dropout=0.0,
             decoder_type=decoder_type,
-            compression_factor=vqvae_config['compression_factor'],
-            num_residual_layers=vqvae_config['num_residual_layers'],
-            num_residual_hiddens=vqvae_config['res_hidden_size'],
+            compression_factor=args.compression_factor,
+            num_residual_layers=args.num_residual_layers,
+            num_residual_hiddens=args.res_hidden_size,
         ).to(self.device)
 
 
@@ -764,75 +486,6 @@ class Client:
             self.model_mustd.revin_out = RevIN(num_features=Sout, affine=False, device=self.device)
             self.logger.info(f"Client {self.client_id} ({self.data_type}): MuStdModel enabled.")
 
-    def compute_codebook_diversity_loss(self, codebook):
-        """
-        Compute diversity loss for the codebook to encourage different vectors.
-        
-        Args:
-            codebook: Tensor of shape (num_embeddings, embedding_dim)
-        
-        Returns:
-            diversity_loss: Scalar tensor representing the diversity loss
-        """
-        if not getattr(self.args, 'codebook_diversity_enable_diversity_loss', False):
-            return 0.0
-        
-        loss_type = getattr(self.args, 'codebook_diversity_diversity_loss_type', 'repulsion')
-        temperature = getattr(self.args, 'codebook_diversity_diversity_temperature', 0.5)
-        
-        if loss_type == 'repulsion':
-            # Repulsion loss: penalize vectors that are too similar
-            # Normalize codebook vectors
-            normalized_codebook = F.normalize(codebook, p=2, dim=1)  # (num_embeddings, embedding_dim)
-            
-            # Compute pairwise cosine similarity
-            similarity_matrix = torch.mm(normalized_codebook, normalized_codebook.t())  # (num_embeddings, num_embeddings)
-            
-            # Zero out diagonal (self-similarity)
-            mask = torch.eye(similarity_matrix.shape[0], device=self.device, dtype=torch.bool)
-            similarity_matrix = similarity_matrix.masked_fill(mask, 0)
-            
-            # Repulsion loss: minimize positive similarities
-            # Higher temperature makes the penalty stricter
-            repulsion_loss = torch.sum(torch.clamp(similarity_matrix + temperature, min=0) ** 2)
-            repulsion_loss = repulsion_loss / (similarity_matrix.shape[0] * (similarity_matrix.shape[0] - 1))
-            
-            return repulsion_loss
-        
-        elif loss_type == 'l2_distance':
-            # L2 distance loss: maximize minimum pairwise distances
-            # Compute pairwise L2 distances
-            diff = codebook.unsqueeze(0) - codebook.unsqueeze(1)  # (num_embeddings, num_embeddings, embedding_dim)
-            distances = torch.norm(diff, p=2, dim=2)  # (num_embeddings, num_embeddings)
-            
-            # Zero out diagonal
-            mask = torch.eye(distances.shape[0], device=self.device, dtype=torch.bool)
-            distances = distances.masked_fill(mask, float('inf'))
-            
-            # Loss: maximize minimum distance (minimize negative minimum distance)
-            min_distances = torch.min(distances, dim=1)[0]  # (num_embeddings,)
-            distance_loss = -torch.mean(min_distances)
-            
-            return distance_loss
-        
-        elif loss_type == 'cosine_similarity':
-            # Cosine similarity based loss: minimize average similarity
-            normalized_codebook = F.normalize(codebook, p=2, dim=1)
-            similarity_matrix = torch.mm(normalized_codebook, normalized_codebook.t())
-            
-            # Zero out diagonal
-            mask = torch.eye(similarity_matrix.shape[0], device=self.device, dtype=torch.bool)
-            similarity_matrix = similarity_matrix.masked_fill(mask, 0)
-            
-            # Loss: minimize mean absolute similarity
-            similarity_loss = torch.mean(torch.abs(similarity_matrix))
-            
-            return similarity_loss
-        
-        else:
-            self.logger.warning(f"Unknown diversity loss type: {loss_type}. Returning 0.")
-            return 0.0
-
     def get_local_models(self):
         """Returns the local models of the client for checkpointing."""
         models = {
@@ -843,18 +496,18 @@ class Client:
             models[f'client_{self.client_id}_{self.data_type}_mustd'] = self.model_mustd
         return models
 
-    def local_train(self, global_codebook_weights, vqvae_config):
+    def local_train(self, global_memory_weights):
         """
         Performs local training on the client's data.
         """
         if not self.dataloaders or 'train' not in self.dataloaders:
-            self.logger.warning(f"Client {self.client_id}: No training data. Skipping local training.")
+            self.logger.warning(f"Client {self.client_id}: No training data available!")
             return None
 
         self.logger.info(f"Client {self.client_id}: Starting local training for {self.args.local_epochs} epochs.")
         
-        # Load the global codebook into the local VQ model
-        self.model_vq.load_state_dict(global_codebook_weights)
+        # Load the global memory into the local VQ model
+        self.model_vq.load_state_dict(global_memory_weights)
 
         # Set models to train mode
         self.model_encoder.train()
@@ -879,8 +532,8 @@ class Client:
         
         lossfn_instance = loss_fn(self.args.loss_type, beta=self.args.beta)
 
-        # Reset codebook usage counter before training
-        self.codebook_usage_count.zero_()
+        # Reset memory usage counter before training
+        self.memory_usage_count.zero_()
 
         for epoch in range(self.args.local_epochs):
             running_loss = 0.0
@@ -903,13 +556,13 @@ class Client:
                 latent_x = self.model_encoder(norm_x_reshaped, self.compression_factor)
                 vq_loss, quantized_x, perplexity, encodings, encoding_indices, _ = self.model_vq(latent_x)
                 
-                # Track codebook usage frequency (vectorized for efficiency)
+                # Track memory usage frequency (vectorized for efficiency)
                 used_indices = encoding_indices.flatten()
                 # Use scatter_add for fast batched updates
-                self.codebook_usage_count.scatter_add_(0, used_indices, torch.ones_like(used_indices, dtype=self.codebook_usage_count.dtype))
+                self.memory_usage_count.scatter_add_(0, used_indices, torch.ones_like(used_indices, dtype=self.memory_usage_count.dtype))
                 
                 # 2. Use codes to predict with the local decode model
-                xcodes = quantized_x.reshape(bs, x.shape[-1], vqvae_config['embedding_dim'], -1)
+                xcodes = quantized_x.reshape(bs, x.shape[-1], self.args.embedding_dim, -1)
                 xcodes = torch.permute(xcodes, (0, 1, 3, 2)) # B, S, TC, D
                 xcodes = xcodes.reshape(bs * x.shape[-1], xcodes.shape[2], xcodes.shape[3]) # B*S, TC, D
                 xcodes = torch.permute(xcodes, (1, 0, 2)) # TC, B*S, D
@@ -944,12 +597,6 @@ class Client:
                     
                     loss = loss_decode + loss_all + vq_loss
 
-                # Add diversity loss
-                if getattr(self.args, 'codebook_diversity_enable_diversity_loss', False):
-                    diversity_loss = self.compute_codebook_diversity_loss(self.model_vq._embedding.weight)
-                    diversity_weight = getattr(self.args, 'codebook_diversity_diversity_loss_weight', 0.1)
-                    loss += diversity_loss * diversity_weight
-
                 # Optimization
                 optimizer.zero_grad()
                 loss.backward()
@@ -959,45 +606,44 @@ class Client:
             avg_epoch_loss = running_loss / len(self.dataloaders['train'])
             self.logger.info(f"Client {self.client_id} | Epoch {epoch+1}/{self.args.local_epochs} | Avg Loss: {avg_epoch_loss:.4f}")
 
-        # Log codebook usage statistics
+        # Log memory usage statistics
         usage_stats = {
-            'min': self.codebook_usage_count.min().item(),
-            'max': self.codebook_usage_count.max().item(),
-            'mean': self.codebook_usage_count.mean().item(),
-            'std': self.codebook_usage_count.std().item(),
-            'num_unused': (self.codebook_usage_count == 0).sum().item()
+            'min': self.memory_usage_count.min().item(),
+            'max': self.memory_usage_count.max().item(),
+            'mean': self.memory_usage_count.mean().item(),
+            'std': self.memory_usage_count.std().item(),
+            'num_unused': (self.memory_usage_count == 0).sum().item()
         }
-        self.logger.info(f"Client {self.client_id} | Codebook usage stats: "
+        self.logger.info(f"Client {self.client_id} | Memory usage stats: "
                         f"min={usage_stats['min']:.0f}, max={usage_stats['max']:.0f}, "
                         f"mean={usage_stats['mean']:.1f}, std={usage_stats['std']:.1f}, "
-                        f"unused_codes={usage_stats['num_unused']}/{len(self.codebook_usage_count)}")
+                        f"unused_prototypes={usage_stats['num_unused']}/{len(self.memory_usage_count)}")
 
-        # Return only the updated codebook tensor
+        # Return only the updated memory tensor
         return self.model_vq._embedding.weight.detach()
 
-    def evaluate(self, global_codebook_weights, vqvae_config, split='val', use_local_codebook=False):
+    def evaluate(self, global_memory_weights, split='val', use_local_memory=False):
         """
         Evaluates the current global model on the client's local data.
         
         Args:
-            global_codebook_weights: Global codebook weights from server (can be None if use_local_codebook=True)
-            vqvae_config: VQ-VAE configuration
+            global_memory_weights: Global memory weights from server (can be None if use_local_memory=True)
             split: 'val' for validation, 'test' for final testing
-            use_local_codebook: If True, use the client's own local codebook instead of global
+            use_local_memory: If True, use the client's own local memory instead of global
         """
         if split not in self.dataloaders:
             self.logger.warning(f"Client {self.client_id}: No '{split}' dataloader available.")
             return None
 
-        self.logger.info(f"Client {self.client_id}: Evaluating on '{split}' data{' (using local codebook)' if use_local_codebook else ''}.")
+        self.logger.info(f"Client {self.client_id}: Evaluating on '{split}' data{' (using local memory)' if use_local_memory else ''}.")
 
-        # Load the global codebook into the local VQ model (unless using local codebook)
-        if not use_local_codebook and global_codebook_weights is not None:
-            self.model_vq.load_state_dict(global_codebook_weights)
-        elif use_local_codebook:
-            self.logger.info(f"Client {self.client_id}: Using local codebook for evaluation (no aggregation).")
+        # Load the global memory into the local VQ model (unless using local memory)
+        if not use_local_memory and global_memory_weights is not None:
+            self.model_vq.load_state_dict(global_memory_weights)
+        elif use_local_memory:
+            self.logger.info(f"Client {self.client_id}: Using local memory for evaluation (no aggregation).")
         else:
-            self.logger.warning(f"Client {self.client_id}: No global codebook provided and use_local_codebook=False.")
+            self.logger.warning(f"Client {self.client_id}: No global memory provided and use_local_memory=False.")
 
         # Set all models to evaluation mode
         self.model_encoder.eval()
@@ -1039,7 +685,7 @@ class Client:
                 norm_x_reshaped = norm_x_permuted.reshape(-1, norm_x_permuted.shape[-1])
                 latent_x = self.model_encoder(norm_x_reshaped, self.compression_factor)
                 vq_loss, quantized_x, _, _, _, _ = self.model_vq(latent_x)
-                xcodes = quantized_x.reshape(bs, x.shape[-1], vqvae_config['embedding_dim'], -1)
+                xcodes = quantized_x.reshape(bs, x.shape[-1], self.args.embedding_dim, -1)
                 xcodes = torch.permute(xcodes, (0, 1, 3, 2))
                 xcodes = xcodes.reshape(bs * x.shape[-1], xcodes.shape[2], xcodes.shape[3])
                 xcodes = torch.permute(xcodes, (1, 0, 2))

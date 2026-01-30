@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from lib.models.vqvae import ResidualStack
+from lib.models.Encoder_and_Retrieval import ResidualStack
 
 """
 This files contains helper models that convert codes to time. 

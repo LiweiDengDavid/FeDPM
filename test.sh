@@ -5,13 +5,13 @@
 # =====================================================================================
 
 # Base configuration
-BASE_CUDA_ID=1
+BASE_CUDA_ID=0
 BASE_SEED=2025
-NUM_ROUNDS=100
-LOCAL_EPOCHS=5
+NUM_ROUNDS=1
+LOCAL_EPOCHS=1
 AGGREGATION_STRATEGY="cos_similarity"
 MEMORY_FILL_STRATEGY="client_personalized"
-CLIENT_DATA_TYPES=("ETTh1" "ETTh2" "ETTm1" "ETTm2" "weather" "electricity" "exchange")
+CLIENT_DATA_TYPES=("ETTh1" "ETTh2")
 BASE_DATA_PATH="./saved_data/"
 LOG_DIR="./logs/federated/"
 BASE_LR=1e-5
@@ -20,7 +20,7 @@ NHEAD=4
 TIN=96
 
 # Prediction horizons to iterate over
-TOUT_VALUES=(96 192 336 720)
+TOUT_VALUES=(96)
 
 # Checkpoint and Log parameters
 CHECKPOINT_PARAMS=("Tin" "Tout" "seed" "encoder_config_transformer_layers" "nlayers" "compression")
