@@ -12,5 +12,5 @@ to_csv.py
 scripts/
 temp_config_*.yaml
 results.jsonl
-tesh.sh
+tesh_code.sh
 *.jsonl
