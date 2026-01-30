@@ -9,9 +9,8 @@ saved_data/
 
 central_main.py
 to_csv.py
-# .sh
-# *.yaml
-# *.json
 scripts/
 temp_config_*.yaml
 results.jsonl
+tesh.sh
+*.jsonl
