@@ -6,11 +6,10 @@ Datasets/
 After_training/
 saved_data/
 
-
 central_main.py
 to_csv.py
 scripts/
 temp_config_*.yaml
 results.jsonl
-tesh_code.sh
+test_code.sh
 *.jsonl

@@ -537,14 +537,14 @@ def default_argument_parser():
     parser.add_argument("--nhead", default=4, type=int)
     parser.add_argument("--nlayers", default=4, type=int)
     
-    # --- VQ-VAE Model Arguments (Converted from vqvae.json) ---
+    # --- Encoder & Retrieval Arguments ---
     parser.add_argument("--block_hidden_size", default=128, type=int)
     parser.add_argument("--num_residual_layers", default=2, type=int)
     parser.add_argument("--res_hidden_size", default=64, type=int)
-    parser.add_argument("--embedding_dim", default=64, type=int)
-    parser.add_argument("--num_embeddings", default=256, type=int)
-    parser.add_argument("--commitment_cost", default=0.25, type=float)
-    parser.add_argument("--compression_factor", default=4, type=int)
+    parser.add_argument("--embedding_dim", default=64, type=int, help="Dimension of each embedding vector.")
+    parser.add_argument("--num_embeddings", default=256, type=int, help="Memory Size.")
+    parser.add_argument("--commitment_cost", default=0.25, type=float, help="Follow the VQ-VAE.")
+    parser.add_argument("--compression_factor", default=4, type=int,help="Patch Length")
 
     # --- Checkpoint Parameters Configuration ---
     parser.add_argument("--checkpoint_params", nargs='+', default=['Tin', 'Tout', 'seed'], 
