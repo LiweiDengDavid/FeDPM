@@ -23,7 +23,10 @@ Official PyTorch implementation for **FeDPM**, a **Fe**derated framework for tim
 │   ├── models/                 # Client, Server and ...
 │   ├── utils/                  # Loggers, checkpoints, and metrics
 │   └── federated_trainer.py    # Main Orchestration
+├── scripts/                    # bash command for run code
 ├── federated_learning_main.py  # Main entry point and setup
+├── extract_forecasting_data.py # Prepare date for trainning
+└── transformer_args.yaml       # Backbone args
 ```
 
 ## 📝 Install Dependencies
