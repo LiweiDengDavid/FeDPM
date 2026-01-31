@@ -4,7 +4,7 @@
 # This script runs federated learning with only 10% of the training data for each client
 
 # General settings
-CUDA_ID=1
+CUDA_ID=0
 SEED=2025
 NUM_ROUNDS=100
 LOCAL_EPOCHS=5

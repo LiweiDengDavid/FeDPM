@@ -5,7 +5,7 @@
 # =====================================================================================
 
 # Base configuration
-BASE_CUDA_ID=1
+CUDA_ID=0
 BASE_SEED=2025
 NUM_ROUNDS=100
 LOCAL_EPOCHS=5
@@ -32,7 +32,7 @@ for TOUT in "${TOUT_VALUES[@]}"; do
     echo "================================================================================"
 
     python federated_learning_main.py \
-       --cuda-id $BASE_CUDA_ID \
+       --cuda-id $CUDA_ID \
        --seed $BASE_SEED \
        --num_rounds $NUM_ROUNDS \
        --local_epochs $LOCAL_EPOCHS \

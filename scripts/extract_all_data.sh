@@ -2,7 +2,7 @@
 
 # General settings
 random_seed=2025
-gpu=0
+cuda_id=0
 seq_len=96
 
 # List of all datasets to process
@@ -68,7 +68,7 @@ for model_id_name in ${datasets[@]}; do
       --pred_len $pred_len \
       --label_len 0 \
       --enc_in $enc_in \
-      --gpu $gpu \
+      --gpu $cuda_id \
       --save_path "./saved_data/$model_id_name/Tin${iter_seq_len}_Tout${pred_len}/" \
       --classifiy_or_forecast "forecast"
   done

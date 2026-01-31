@@ -8,7 +8,7 @@ saved_data/
 
 central_main.py
 to_csv.py
-scripts/
+# scripts/
 temp_config_*.yaml
 results.jsonl
 test_code.sh

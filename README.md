@@ -18,14 +18,12 @@ Official PyTorch implementation for **FeDPM**, a **Fe**derated framework for tim
 
 ```text
 .
-├── data_provider/          # Data loading and factory
-├── exp/                   # Core experiment execution logic
-├── layers/                # Custom neural network layers (Transformer, etc.)
+├── data_provider/              # Data loading and factory
 ├── lib/
-│   ├── models/            # VQ-VAE and backbone model implementations
-│   └── utils/             # Loggers, checkpoints, and metrics
-├── federated_learning_main.py  # Main entry point for training
-└── federated_components.py      # Federated server and client definitions
+│   ├── models/                 # Client, Server and ...
+│   ├── utils/                  # Loggers, checkpoints, and metrics
+│   └── federated_trainer.py    # Main Orchestration
+├── federated_learning_main.py  # Main entry point and setup
 ```
 
 ## 📝 Install Dependencies
