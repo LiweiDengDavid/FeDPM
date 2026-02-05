@@ -90,4 +90,9 @@ If you find this work is helpful to your research, please consider citing:
 ```
 Coming Soon!
 ```
+
+## 📧 Contact
+
+If you have any questions, please feel free to contact me via [email](mailto:liweidengdavid@gmail.com) or ask in the issues.
+
 Thanks for your interest in our work!
