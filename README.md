@@ -62,7 +62,7 @@ Datasets/
 ### 2. Preprocessing
 Run the following script to generate `.npy` cache Files in `saved_data/`:
 ```bash
-bash extract_all_data.sh
+bash ./scripts/extract_all_data.sh
 ```
 
 ## 🚀 Experiments
@@ -75,8 +75,8 @@ bash train_FL_setting.sh
 
 ### 2. Few-Shot Learning (5% & 10%)
 We evaluate the framework's robustness using only a fraction of the local data:
-*   **5% Data**: `bash few_shot_5percent.sh`
-*   **10% Data**: `bash few_shot_10percent.sh`
+*   **5% Data**: `bash ./scripts/few_shot_5percent.sh`
+*   **10% Data**: `bash ./scripts/few_shot_10percent.sh`
 
 ## ⚙️ Configuration
 You can customize the training by modifying:
@@ -90,9 +90,5 @@ If you find this work is helpful to your research, please consider citing:
 ```
 Coming Soon!
 ```
-
-## 📧 Contact
-
-If you have any questions, please feel free to contact me via [email](mailto:liweidengdavid@gmail.com) or ask in the issues.
 
 Thanks for your interest in our work!
