@@ -58,7 +58,6 @@ python federated_learning_main.py \
     --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
     --Tin ${TIN} \
     --Tout ${TOUT} \
-    --config_path ${CONFIG_PATH} \
     --backbone_config_path ${backbone_config_path} \
     --log_dir ${LOG_DIR} \
     --results_path ${RESULTS_PATH} \
@@ -99,7 +98,6 @@ python federated_learning_main.py \
     --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
     --Tin ${TIN} \
     --Tout ${TOUT} \
-    --config_path ${CONFIG_PATH} \
     --backbone_config_path ${backbone_config_path} \
     --log_dir ${LOG_DIR} \
     --results_path ${RESULTS_PATH} \
@@ -141,7 +139,6 @@ python federated_learning_main.py \
     --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
     --Tin ${TIN} \
     --Tout ${TOUT} \
-    --config_path ${CONFIG_PATH} \
     --backbone_config_path ${backbone_config_path} \
     --log_dir ${LOG_DIR} \
     --results_path ${RESULTS_PATH} \
@@ -181,7 +178,6 @@ python federated_learning_main.py \
     --clients_disable_mustd ${CLIENTS_DISABLE_MUSTD[@]} \
     --Tin ${TIN} \
     --Tout ${TOUT} \
-    --config_path ${CONFIG_PATH} \
     --backbone_config_path ${backbone_config_path} \
     --log_dir ${LOG_DIR} \
     --results_path ${RESULTS_PATH} \
