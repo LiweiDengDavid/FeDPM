@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import os
 import json
 from lib.utils.results_logger import human_count_params
-from FeDPM.lib.models.decoder import XcodeYtimeDecoder, MuStdModel
+from lib.models.decoder import XcodeYtimeDecoder, MuStdModel
 from lib.models.revin import RevIN
 from lib.models.metrics import pearsoncor
 from lib.utils.data_utils import create_time_series_dataloader, get_params, loss_fn
