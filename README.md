@@ -70,7 +70,7 @@ bash ./scripts/extract_all_data.sh
 ### 1. Full-Shot Federated Learning
 Train the model across all clients using the default federated setting:
 ```bash
-bash train_FL_setting.sh
+bash ./scripts/train_FL_setting.sh
 ```
 
 ### 2. Few-Shot Learning (5% & 10%)
