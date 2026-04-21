@@ -7,7 +7,7 @@ seq_len=96
 
 # List of all datasets to process
 # 
-datasets=("ETTh1" "ETTh2" "ETTm1" "ETTm2" "electricity" "weather" "exchange" "traffic" "illness")
+datasets=("ETTh1" "ETTh2" "ETTm1" "ETTm2" "electricity" "weather" "exchange")
 
 # Loop over each dataset
 for model_id_name in ${datasets[@]}; do
